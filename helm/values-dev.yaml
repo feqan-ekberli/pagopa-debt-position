@@ -1,0 +1,175 @@
+microservice-chart:
+  namespace: "gps"
+  nameOverride: ""
+  fullnameOverride: ""
+  image:
+    repository: ghcr.io/pagopa/pagopa-debt-position
+    tag: "1.1.39"
+    pullPolicy: Always
+  livenessProbe:
+    httpGet:
+      path: /actuator/health/liveness
+      port: 8080
+    initialDelaySeconds: 90
+    failureThreshold: 6
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /actuator/health/readiness
+      port: 8080
+    initialDelaySeconds: 90
+    failureThreshold: 6
+    periodSeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  deployment:
+    create: true
+    replicas: 1 # (default) same as HPA minReplica
+  service:
+    create: true
+    type: ClusterIP
+    ports:
+      - 8080
+  ingress:
+    create: true
+    host: "weudev.gps.internal.dev.platform.pagopa.it"
+    path: /pagopa-gpd-core/(.*)
+    servicePort: 8080
+  serviceAccount:
+    name: "gps-workload-identity"
+  azure:
+    workloadIdentityClientId: <workload-identity-client-id-set-automatically-by-gha>
+  podAnnotations: {}
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "0.25"
+    limits:
+      memory: "640Mi"
+      cpu: "0.5"
+  autoscaling:
+    enable: true
+    minReplica: 1
+    maxReplica: 1
+    pollingInterval: 5 # seconds
+    cooldownPeriod: 50 # seconds
+    triggers:
+      - type: cpu
+        metadata:
+          # Required
+          type: Utilization # Allowed types are 'Utilization' or 'AverageValue'
+          value: "50"
+    advanced:
+      horizontalPodAutoscalerConfig:
+        behavior:
+          scaleDown:
+            # https://github.com/kubernetes/enhancements/blob/master/keps/sig-autoscaling/853-configurable-hpa-scale-velocity/README.md#stabilization-window
+            stabilizationWindowSeconds: 300
+            policies:
+              - type: Pods
+                value: 1
+                periodSeconds: 20
+          scaleUp:
+            stabilizationWindowSeconds: 0
+            policies:
+              - type: Pods
+                value: 2
+                periodSeconds: 20
+  envConfig:
+    WEBSITE_SITE_NAME: 'pagopa-d-gpd-core-service'
+    ENV: 'dev'
+    SPRING_DATASOURCE_URL: "jdbc:postgresql://gpd-db.d.internal.postgresql.pagopa.it:5432/apd?sslmode=require&prepareThreshold=0&tcpKeepAlive=true"
+    SPRING_DATASOURCE_TYPE: "com.zaxxer.hikari.HikariDataSource"
+    SPRING_JPA_HIBERNATE_DDL_AUTO: "validate"
+    SPRING_JPA_HIBERNATE_SHOW_SQL: "false"
+    SCHEMA_NAME: "apd"
+    CRON_JOB_SCHEDULE_ENABLED: "true"
+    CRON_JOB_SCHEDULE_EXPRESSION_TO_VALID: "0 */10 * * * *"
+    CRON_JOB_SCHEDULE_EXPRESSION_TO_EXPIRED: "0 */20 * * * *"
+    CRON_JOB_SCHEDULE_SHEDLOCK_DEFAULTLOCKATMOSTFOR: "30m"
+    CRON_JOB_SCHEDULE_SHEDLOCK_LOCKATMOSTFOR: "45m"
+    CRON_JOB_SCHEDULE_SHEDLOCK_LOCKATLEASTFOR: "1m"
+    CRON_JOB_SCHEDULE_BATCH_SIZE: "25"
+    CRON_JOB_SCHEDULE_BATCH_TIMEOUT_SECONDS: "60"
+    CRON_JOB_SCHEDULE_HISTORY_ENABLED: "false"
+    CRON_JOB_SCHEDULE_HISTORY_TRIGGER: "0 0 13 * * *"
+    CRON_JOB_SCHEDULE_HISTORY_QUERY: "SELECT pp FROM PaymentPosition pp WHERE pp.status IN ('PAID', 'REPORTED', 'INVALID', 'EXPIRED') AND pp.lastUpdatedDate < ?1"
+    CRON_JOB_SCHEDULE_HISTORY_PAGINATED: "true"
+    CRON_JOB_SCHEDULE_HISTORY_QUERY_COUNT: "SELECT count(pp.id) FROM PaymentPosition pp WHERE pp.status IN ('PAID', 'REPORTED', 'INVALID', 'EXPIRED') AND pp.lastUpdatedDate < ?1"
+    CRON_JOB_SCHEDULE_HISTORY_QUERY_PAGE_SIZE: "500"
+    CRON_JOB_SCHEDULE_HISTORY_QUERY_INTERVAL: "30"
+    CRON_JOB_SCHEDULE_HISTORY_SHEDLOCK_DEFAULTLOCKATMOSTFOR: "5m"
+    CRON_JOB_SCHEDULE_HISTORY_SHEDLOCK_LOCKATMOSTFOR: "180m"
+    CRON_JOB_SCHEDULE_HISTORY_SHEDLOCK_LOCKATLEASTFOR: "5m"
+    GPD_ARCHIVE_SA_PP_TABLE: "paymentpositiontable"
+    GPD_ARCHIVE_BATCH_OPERATION_SIZE: "100"
+    AUX_DIGIT: "3"
+    NODE_HOST: "https://api.dev.platform.pagopa.it"
+    NODE_CHECK_POSITION_PATH: "/nodo/nodo-per-pm/v1/checkPosition"
+    NODE_CONNECTION_TIMEOUT: "3000"
+    SEND_HOST: "https://api.uat.notifichedigitali.it"
+    NOTIFICATION_PRICE_PATH: "/delivery/v2.3/price/{paTaxId}/{noticeCode}"
+    RETRY_MAX_DELAY: "2000"
+    RETRY_MAX_ATTEMPTS: "1"
+    LOG_LEVEL: "INFO"
+    SQL_LOG_LEVEL: "ERROR"
+    SQL_BINDER_LOG_LEVEL: "ERROR"
+    MAX_DEBT_POSITIONS: "100"
+    HIKARI_MAXIMUM_POOL_SIZE: "30"
+    HIKARI_MAX_LIFETIME: "900000"
+    HIKARI_CONNECTION_TIMEOUT: "60000"
+    HIKARI_IDLE_TIMEOUT: "600000"
+    HIKARI_LEAK_DETECTION_THRESHOLD: "60000"
+    SERVICE_NAME: "pagopa-gpd-core"
+    OTEL_SERVICE_NAME: "pagopa-gpd-core"
+    OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=dev"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.elastic-system.svc:4317"
+    OTEL_TRACES_SAMPLER: "traceidratio"
+    OTEL_TRACES_SAMPLER_ARG: "1"
+    OTEL_TRACES_EXPORTER: otlp
+    OTEL_METRICS_EXPORTER: none
+    OTEL_LOGS_EXPORTER: none
+  envSecret:
+    # required
+    APPLICATIONINSIGHTS_CONNECTION_STRING: 'ai-d-connection-string'
+    SPRING_DATASOURCE_PASSWORD: "db-apd-user-password"
+    SPRING_DATASOURCE_USERNAME: "db-apd-user-name"
+    NODE_SUBSCRIPTION_KEY: "gpd-d-node-subscription-key"
+    SEND_SUBSCRIPTION_KEY: "gpd-d-send-subscription-key"
+    GPD_ARCHIVE_SA_CONNECTION_STRING: "gpd-archive-d-sa-connection-string"
+    OTEL_EXPORTER_OTLP_HEADERS: elastic-apm-secret-token
+  keyvault:
+    name: "pagopa-d-gps-kv"
+    tenantId: "7788edaf-0346-4068-9d79-c868aed15b3d"
+  nodeSelector: {}
+  tolerations: []
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node_type
+                operator: In
+                values:
+                  - user
+  canaryDelivery:
+    create: false
+    ingress:
+      type: header
+      headerName: X-Canary
+      headerValue: canary
+      weightPercent: 0
+    image:
+      repository: ghcr.io/pagopa/pagopa-debt-position
+      tag: "1.0.0"
+      pullPolicy: Always
+    envConfig: {}
+    envSecret: {}

@@ -1,0 +1,101 @@
+@startuml
+
+title ER - Debt Position
+
+entity payment_position {
+  * id (primary)
+  * iupd (unique)
+  * organization_fiscal_code (unique)
+  --
+  city
+  civic_number
+  * company_name (idx)
+  country
+  email
+  full_name
+  * inserted_date (idx)
+  last_updated_date
+  max_due_date
+  min_due_date
+  office_name
+  phone
+  postal_code
+  province
+  publish_date
+  region
+  status
+  street_name
+  type
+  validity_date
+  version
+  switch_to_expired
+  * payment_date (idx)
+}
+
+entity payment_option {
+  * id (primary)
+  * nav (unique)
+  * iuv (unique)
+  * organization_fiscal_code (unique)
+  --
+  payment_position_id
+  amount
+  description
+  * due_date (idx)
+  fee
+  flow_reporting_id
+  receipt_id
+  inserted_date
+  is_partial_payment
+  last_updated_date
+  last_updated_date_notification_fee
+  payment_date
+  payment_method
+  psp_company
+  reporting_date
+  retention_date
+  status
+  notification_fee
+}
+
+entity transfer {
+  * id (primary)
+  * transfer_id (unique)
+  * iuv (unique)
+  --
+  payment_option_id
+  amount
+  category (taxonomy)
+  iban
+  inserted_date
+  last_updated_date
+  organization_fiscal_code
+  postal_iban
+  remittance_information
+  status
+  hash_document
+  stamp_type
+  provincial_residence
+}
+
+entity payment_option_metadata {
+  * id (primary)
+  * key (unique)
+  * value (unique)
+  --
+  payment_option_id
+}
+
+entity transfer_metadata {
+  * id (primary)
+  * key (unique)
+  * value (unique)
+  --
+  transfer_id
+}
+
+payment_position ||.|{ payment_option
+payment_option ||.|{ transfer
+payment_option ||.|{ payment_option_metadata
+transfer ||.|{ transfer_metadata
+@enduml

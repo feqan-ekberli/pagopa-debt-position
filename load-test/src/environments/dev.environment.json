@@ -1,0 +1,10 @@
+{
+  "environment": [
+    {
+      "env": "dev",
+      "host": "https://api.dev.platform.pagopa.it/gpd/debt-positions-service/v1",
+	  "host_internal": "https://api.dev.platform.pagopa.it/gpd/api/v1"
+    }
+  ]
+}
+

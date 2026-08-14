@@ -1,0 +1,16 @@
+package it.gov.pagopa.debtposition.model.filterandorder;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import lombok.Builder;
+import lombok.Getter;
+
+@Getter
+@Builder
+@NotNull
+public class FilterAndOrder {
+
+  @NotNull @Valid private Filter filter;
+
+  @NotNull @Valid private Order order;
+}

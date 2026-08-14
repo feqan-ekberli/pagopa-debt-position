@@ -3,22 +3,24 @@ PagoPA service to manage EC debtor positions
 ---
 ## Api Documentation 📖
 ### GPD
-See the [OpenApi 3 here.](https://editor.swagger.io/?url=https://raw.githubusercontent.com/pagopa/pagopa-debt-position/main/gpd/openapi/openapi.json)
+See the internal swagger [OpenApi 3 here.](https://editor.swagger.io/?url=https://raw.githubusercontent.com/pagopa/pagopa-debt-position/main/openapi/openapi_internal.json)
 
-### Payments
-See the [OpenApi 3 here.](https://editor.swagger.io/?url=https://raw.githubusercontent.com/pagopa/pagopa-debt-position/main/payments/openapi/openapi.json)
+See the external swagger version 1 [OpenApi 3 here.](https://editor.swagger.io/?url=https://raw.githubusercontent.com/pagopa/pagopa-debt-position/main/openapi/openapi_external.json)
+
+See the external swagger version 3 [OpenApi 3 here.](https://editor.swagger.io/?url=https://raw.githubusercontent.com/pagopa/pagopa-debt-position/main/openapi/openapi_external_v3.json)
 
 In local env typing following url on browser for ui interface: 
 ```
 http://localhost:8080/swagger-ui/index.html
-
 ```
 or that for `yaml` version
-```http://localhost:8080/v3/api-docs/```
+```
+http://localhost:8080/v3/api-docs/
+```
 
 ---
 ## Technology Stack
-- Java 11
+- Java 17
 - Spring Boot
 - Spring Web
 - Hibernate
@@ -33,7 +35,7 @@ or that for `yaml` version
 
 ### Run docker container
 
-Under main project folder typing :
+Under docker project folder typing :
 `docker-compose up --build`
 >**NOTE** : before that compile `gpd` service with `mvn clean package` command
 
@@ -47,17 +49,21 @@ gpd       | 2022-01-27 13:49:00.792  INFO 1 --- [           main] i.g.p.d.DebtPo
 
 ## Develop Locally 💻
 
-Under `gpd` folder typing :
+Under `gpd` main project folder typing :
 
 ```sh 
-bash run_local.sh
+bash ./docker/run_local.sh
+```
+or
+```sh 
+bash ./docker/run_docker.sh local
 ```
 > **NOTE**: above command run spring boot application via `mvn` command. You can comment this line and runs it with your favourite ide, to debug. 
 
 ### Prerequisites
 - git
 - maven
-- jdk-11
+- jdk-17
 - docker
 
 ### Run the project
@@ -65,6 +71,12 @@ The easiest way to develop locally is start only db container and run spring-boo
 ```
 /usr/local/bin/docker-compose up -d postgres
 /usr/local/bin/docker-compose up -d flyway
+```
+
+### Run the project with h2 database
+
+```
+mvn spring-boot:run -Dspring-boot.run.profiles=h2
 ```
 
 ### FlyWay - versioning schema changes
@@ -81,63 +93,26 @@ Example of the naming convention is: V001__INIT.sql
 
 > **NOTE**: In the application.properties the ddl-auto configuration must be validate. This causes Hibernate to validate the schema to see if it matches with what is defined in Java.
 
-## Start the dev environment for Reporting subsystems
+### Database migration
 
-### Docker
-
-From `reporting-batch` folder:
-
+Run the validate command to check for inconsistencies between local files and the database history:
+```sh 
+  mvn flyway:validate -Dflyway.configFiles=gpdFlywayConfig.conf
 ```
-mv .env.example .env
+Compile the sources
+```sh 
+  mvn compile
 ```
-
-From `reporting-service` folder:
-
+Run flyway migration in debug mode with gpdFlywayConfig.conf:
+```sh
+  mvn flyway:migrate -X -Dflyway.configFiles=gpdFlywayConfig.conf
 ```
-mv .env.example .env
-```
-
-From the project root:
-```
-docker-compose -f docker-compose-reporting.yml up --build
-```
-
-### Local
-#### Prerequisites
-- [Azurite](https://github.com/Azure/Azurite)
-
-
-By default, Azurite will listen for the :
-- [Blob service on port 10000](
-https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite?tabs=visual-studio#blob-listening-port-configuration)
-- [Queue service on port 10001](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite?tabs=visual-studio#queue-listening-port-configuration)
-- [Table service on port 10002](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite?tabs=visual-studio#table-listening-port-configuration)
-
-```
-docker run -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite
-```
-
-From `reporting-batch` folder:
-
-```
-cp local.settings.json.example local.settings.json
-```
-
-From `reporting-service` folder:
-
-```
-mv local.settings.json.example local.settings.json
-mvn clean package
-mvn azure-functions:run
-```
-
-Tool to explore azurite: https://azure.microsoft.com/it-it/features/storage-explorer/ 
 
 ### Testing 🧪
 
 #### Unit testing
 
-Under `gpd` folder typing `mvn clean verify`, if all right you'll see following stuffs
+Under `gpd` main project folder typing `mvn clean verify`, if all right you'll see following stuffs
 
 ```sh
 [INFO] Results:
@@ -156,41 +131,16 @@ Under `gpd` folder typing `mvn clean verify`, if all right you'll see following 
 
 #### Integration testing
 
-under `gpd` folder typing
+under main `gpd` project folder typing
 
 ```sh
- bash api-test/run_test.sh l int
+ integration-test/run_integration_test.sh local
 ```
-> **NOTE**: suppose `Started DebtPositionApplication` on port `8085`
-
-if all  right you'll see something like that :
-
-```sh
-┌─────────────────────────┬───────────────────┬──────────────────┐
-│                         │          executed │           failed │
-├─────────────────────────┼───────────────────┼──────────────────┤
-│              iterations │                 1 │                0 │
-├─────────────────────────┼───────────────────┼──────────────────┤
-│                requests │                 9 │                0 │
-├─────────────────────────┼───────────────────┼──────────────────┤
-│            test-scripts │                18 │                0 │
-├─────────────────────────┼───────────────────┼──────────────────┤
-│      prerequest-scripts │                10 │                0 │
-├─────────────────────────┼───────────────────┼──────────────────┤
-│              assertions │                13 │                0 │
-├─────────────────────────┴───────────────────┴──────────────────┤
-│ total run duration: 1003ms                                     │
-├────────────────────────────────────────────────────────────────┤
-│ total data received: 5.25kB (approx)                           │
-├────────────────────────────────────────────────────────────────┤
-│ average response time: 79ms [min: 8ms, max: 207ms, s.d.: 61ms] │
-└────────────────────────────────────────────────────────────────┘
-```
-
+> **NOTE**: suppose `Started DebtPositionApplication` on port `8080`
 
 #### Load testing
 
-under `gpd` folder typing
+under main `gpd` folder typing
 
 ```sh
  bash api-test/run_test.sh l load

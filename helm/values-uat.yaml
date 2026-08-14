@@ -1,0 +1,182 @@
+microservice-chart:
+  namespace: "gps"
+  nameOverride: ""
+  fullnameOverride: ""
+  image:
+    repository: ghcr.io/pagopa/pagopa-debt-position
+    tag: "1.1.39"
+    pullPolicy: Always
+  livenessProbe:
+    httpGet:
+      path: /actuator/health/liveness
+      port: 8080
+    initialDelaySeconds: 60
+    failureThreshold: 10
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /actuator/health/readiness
+      port: 8080
+    initialDelaySeconds: 60
+    failureThreshold: 10
+    periodSeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  deployment:
+    create: true
+    replicas: 1 # (default) same as HPA minReplica
+  service:
+    create: true
+    type: ClusterIP
+    ports:
+      - 8080
+  ingress:
+    create: true
+    host: "weuuat.gps.internal.uat.platform.pagopa.it"
+    path: /pagopa-gpd-core/(.*)
+    servicePort: 8080
+  serviceAccount:
+    name: "gps-workload-identity"
+  azure:
+    workloadIdentityClientId: <workload-identity-client-id-set-automatically-by-gha>
+  podAnnotations: {}
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+  resources:
+    requests:
+      memory: "1024Mi"
+      cpu: "0.50"
+    limits:
+      memory: "2048Mi"
+      cpu: "0.75"
+  autoscaling:
+    enable: true
+    minReplica: 1
+    maxReplica: 1
+    pollingInterval: 1 # seconds
+    cooldownPeriod: 50 # seconds
+    triggers:
+      - type: cpu
+        metadata:
+          # Required
+          type: Utilization # Allowed types are 'Utilization' or 'AverageValue'
+          value: "50"
+      - type: metrics-api
+        metadata:
+          targetValue: "50" # milliseconds
+          url: "https://weuuat.gps.internal.uat.platform.pagopa.it/pagopa-gpd-core/actuator/metrics/http.server.requests.percentile?tag=phi:0.99"
+          valueLocation: "measurements.0.value"
+    advanced:
+      horizontalPodAutoscalerConfig:
+        behavior:
+          scaleDown:
+            # https://github.com/kubernetes/enhancements/blob/master/keps/sig-autoscaling/853-configurable-hpa-scale-velocity/README.md#stabilization-window
+            stabilizationWindowSeconds: 300
+            policies:
+              - type: Pods
+                value: 1
+                periodSeconds: 20
+          scaleUp:
+            stabilizationWindowSeconds: 0
+            policies:
+              - type: Pods
+                value: 2
+                periodSeconds: 20
+  envConfig:
+    WEBSITE_SITE_NAME: 'pagopa-u-gpd-core-service'
+    ENV: 'uat'
+    SPRING_DATASOURCE_URL: "jdbc:postgresql://gpd-db.u.internal.postgresql.pagopa.it:5432/apd?sslmode=require&prepareThreshold=0&tcpKeepAlive=true"
+    SPRING_DATASOURCE_TYPE: "com.zaxxer.hikari.HikariDataSource"
+    SPRING_JPA_HIBERNATE_DDL_AUTO: "validate"
+    SPRING_JPA_HIBERNATE_SHOW_SQL: "false"
+    SCHEMA_NAME: "apd"
+    CRON_JOB_SCHEDULE_ENABLED: "true"
+    CRON_JOB_SCHEDULE_EXPRESSION_TO_VALID: "0 0 11,21 * * *" # 11, 21 (UTC+00) o'clock of every day.
+    CRON_JOB_SCHEDULE_EXPRESSION_TO_EXPIRED: "0 30 11,21 * * *" # 11:30, 21:30 (UTC+00) o'clock of every day.
+    CRON_JOB_SCHEDULE_SHEDLOCK_DEFAULTLOCKATMOSTFOR: "30m"
+    CRON_JOB_SCHEDULE_SHEDLOCK_LOCKATMOSTFOR: "45m"
+    CRON_JOB_SCHEDULE_SHEDLOCK_LOCKATLEASTFOR: "1m"
+    CRON_JOB_SCHEDULE_BATCH_SIZE: "25"
+    CRON_JOB_SCHEDULE_BATCH_TIMEOUT_SECONDS: "60"
+    CRON_JOB_SCHEDULE_HISTORY_ENABLED: "false"
+    CRON_JOB_SCHEDULE_HISTORY_TRIGGER: "0 0 1 * * *"
+    CRON_JOB_SCHEDULE_HISTORY_QUERY: "SELECT pp FROM PaymentPosition pp WHERE pp.status IN ('PAID', 'REPORTED', 'INVALID', 'EXPIRED') AND pp.lastUpdatedDate < ?1"
+    CRON_JOB_SCHEDULE_HISTORY_PAGINATED: "true"
+    CRON_JOB_SCHEDULE_HISTORY_QUERY_COUNT: "SELECT count(pp.id) FROM PaymentPosition pp WHERE pp.status IN ('PAID', 'REPORTED', 'INVALID', 'EXPIRED') AND pp.lastUpdatedDate < ?1"
+    CRON_JOB_SCHEDULE_HISTORY_QUERY_PAGE_SIZE: "10000"
+    CRON_JOB_SCHEDULE_HISTORY_QUERY_INTERVAL: "90"
+    CRON_JOB_SCHEDULE_HISTORY_SHEDLOCK_DEFAULTLOCKATMOSTFOR: "5m"
+    CRON_JOB_SCHEDULE_HISTORY_SHEDLOCK_LOCKATMOSTFOR: "240m"
+    CRON_JOB_SCHEDULE_HISTORY_SHEDLOCK_LOCKATLEASTFOR: "5m"
+    GPD_ARCHIVE_SA_PP_TABLE: "paymentpositiontable"
+    GPD_ARCHIVE_BATCH_OPERATION_SIZE: "1000"
+    AUX_DIGIT: "3"
+    NODE_HOST: "https://api.uat.platform.pagopa.it"
+    NODE_CHECK_POSITION_PATH: "/nodo/nodo-per-pm/v1/checkPosition"
+    NODE_CONNECTION_TIMEOUT: "3000"
+    SEND_HOST: "https://api.uat.notifichedigitali.it"
+    NOTIFICATION_PRICE_PATH: "/delivery/v2.3/price/{paTaxId}/{noticeCode}"
+    RETRY_MAX_DELAY: "2000"
+    RETRY_MAX_ATTEMPTS: "1"
+    SEND_RETRY_MAX_DELAY: "1500"
+    SEND_RETRY_MAX_ATTEMPTS: "2"
+    LOG_LEVEL: "INFO"
+    SQL_LOG_LEVEL: "ERROR"
+    SQL_BINDER_LOG_LEVEL: "ERROR"
+    MAX_DEBT_POSITIONS: "100"
+    HIKARI_MAXIMUM_POOL_SIZE: "30"
+    HIKARI_MAX_LIFETIME: "900000"
+    HIKARI_CONNECTION_TIMEOUT: "60000"
+    HIKARI_IDLE_TIMEOUT: "600000"
+    HIKARI_LEAK_DETECTION_THRESHOLD: "60000"
+    SERVICE_NAME: "pagopa-gpd-core"
+    OTEL_SERVICE_NAME: "pagopa-gpd-core"
+    OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=uat"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.elastic-system.svc:4317"
+    OTEL_TRACES_SAMPLER: "traceidratio"
+    OTEL_TRACES_SAMPLER_ARG: "1"
+    OTEL_TRACES_EXPORTER: otlp
+    OTEL_METRICS_EXPORTER: none
+    OTEL_LOGS_EXPORTER: none
+  envSecret:
+    # required
+    APPLICATIONINSIGHTS_CONNECTION_STRING: 'ai-u-connection-string'
+    SPRING_DATASOURCE_PASSWORD: "db-apd-user-password"
+    SPRING_DATASOURCE_USERNAME: "db-apd-user-name"
+    NODE_SUBSCRIPTION_KEY: "gpd-u-node-subscription-key"
+    SEND_SUBSCRIPTION_KEY: "gpd-u-send-subscription-key"
+    GPD_ARCHIVE_SA_CONNECTION_STRING: "gpd-archive-u-sa-connection-string"
+    OTEL_EXPORTER_OTLP_HEADERS: elastic-apm-secret-token
+  keyvault:
+    name: "pagopa-u-gps-kv"
+    tenantId: "7788edaf-0346-4068-9d79-c868aed15b3d"
+  nodeSelector: {}
+  tolerations: []
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node_type
+                operator: In
+                values:
+                  - user
+  canaryDelivery:
+    create: false
+    ingress:
+      type: header
+      headerName: X-Canary
+      headerValue: canary
+      weightPercent: 0
+    image:
+      repository: ghcr.io/pagopa/pagopa-debt-position
+      tag: "1.0.0"
+      pullPolicy: Always
+    envConfig: {}
+    envSecret: {}
